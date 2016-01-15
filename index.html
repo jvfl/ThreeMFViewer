@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+	<title>3mf Loader</title>
+
+	<style>
+
+		body {
+			font-family: Monospace;
+			background-color: #000000;
+			margin: 0px;
+			overflow: hidden;
+		}
+
+		#info {
+			color: #fff;
+			position: absolute;
+			top: 10px;
+			width: 100%;
+			text-align: center;
+			z-index: 100;
+			display:block;
+		}
+
+		a { color: skyblue }
+
+		#controls {
+			position:absolute;
+			width:275px;
+			bottom:0%;
+			right:0%;
+			height:100px;
+			opacity:.9;
+			font: 13px/1.231 "Lucida Grande", Lucida, Verdana, sans-serif;
+		}
+
+		.control {
+			position:absolute;
+			color: #fff;
+			margin-left:12px;
+			width:100%;
+			font-weight:bold;
+		}
+
+		.controlValue {
+			position:absolute;
+			left:36%;
+			top:0%;
+		}
+
+		#models_control {
+			position:absolute;
+			top:8px;
+		}
+
+		#simulate_control {
+			position:absolute;
+			top:40px;
+		}
+
+	</style>
+</head>
+
+<body>
+
+	<div id="info">
+		<a href="http://threejs.org" target="_blank">three.js</a> -
+			3D Printing Viewer Demo by <a href="https://github.com/jvfl">jvfl</a> from <a href="www.cin.ufpe.br/voxarlabs">Voxar Labs.</a>
+	</div>
+
+	<div id="controls">
+		<div class="control" id="models_control">
+		Model
+		<select class="controlValue" id="models_list" size="1" onchange="selectModel();" ondblclick="selectModel();">
+		</select>
+		</div>
+
+		<div class="control" id="simulate_control">
+		<input type="submit" onclick="sliceCurrentModel();" value="Simulate Layering"></input>
+		</div>
+
+		</div>
+	</div>
+
+</body>
+
+<script type="text/javascript" src="js/zip.js"></script>
+<script type="text/javascript" src="js/three.min.js"></script>
+<script type="text/javascript" src="js/loader.js"></script>
+<script type="text/javascript" src="js/ThreeMFLoader.js"></script>
+<script type="text/javascript" src="js/Detector.js"></script>
+<script type="text/javascript" src="js/stats.min.js"></script>
+<script type="text/javascript" src="js/OrbitControls.js"></script>
+<script type="text/javascript" src="js/csg.js"></script>
+<script type="text/javascript" src="js/ThreeCSG.js"></script>
+<script type="text/javascript" src="js/3DPrinterSimulator.js"></script>
+<script type="text/javascript" src="js/ViewerControls.js"></script>
+<script>
+
+			if ( ! Detector.webgl ) Detector.addGetWebGLMessage();
+
+			var container, stats;
+
+			var camera, cameraTarget, scene, renderer;
+
+			var objects = [];
+
+			init();
+			animate();
+
+			function init() {
+
+				container = document.createElement( 'div' );
+				document.body.appendChild( container );
+
+				scene = new THREE.Scene();
+
+				var grid = new THREE.GridHelper( 25, 1.0 );
+				grid.setColors( 0xffffff, 0x555555 );
+				scene.add( grid );
+
+				var loader = new THREE.ThreeMFLoader();
+				loader.setScriptsLocation("js/");
+
+				var times = [];
+
+				var ambientLight = new THREE.AmbientLight( 0x404040 );
+				scene.add( ambientLight );
+
+				var directionalLight = new THREE.DirectionalLight( 0xffffff );
+				directionalLight.position.x = 5;
+				directionalLight.position.y = 5;
+				directionalLight.position.z = 3.75;
+				directionalLight.position.normalize();
+				scene.add( directionalLight );
+
+				var directionalLight = new THREE.DirectionalLight( 0x808080 );
+				directionalLight.position.x = - 5;
+				directionalLight.position.y = 5;
+				directionalLight.position.z = - 3.75;
+				directionalLight.position.normalize();
+				scene.add( directionalLight );
+
+				camera = new THREE.PerspectiveCamera( 35, window.innerWidth / window.innerHeight, 1, 100 );
+				camera.position.set( 6, 4, 6 );
+
+				cameraTarget = new THREE.Vector3( 0, 0, 0 );
+
+				// renderer
+
+				renderer = new THREE.WebGLRenderer( { antialias: true } );
+				renderer.setClearColor( 0x72645b );
+				renderer.setPixelRatio( window.devicePixelRatio );
+				renderer.setSize( window.innerWidth, window.innerHeight );
+
+				renderer.gammaInput = true;
+				renderer.gammaOutput = true;
+
+				renderer.shadowMap.enabled = true;
+				renderer.shadowMap.cullFace = THREE.CullFaceBack;
+
+				container.appendChild( renderer.domElement );
+
+				// stats
+
+				stats = new Stats();
+				stats.domElement.style.position = 'absolute';
+				stats.domElement.style.top = '0px';
+				container.appendChild( stats.domElement );
+
+				// Orbit Controls
+				cameraControls = new THREE.OrbitControls(camera, renderer.domElement);
+				cameraControls.target.set( 0, 1, 0 );
+				cameraControls.maxDistance = 15;
+				cameraControls.minDistance = 0;
+				cameraControls.update();
+				//
+
+				window.addEventListener( 'resize', onWindowResize, false );
+
+			}
+
+			function addShadowedLight( x, y, z, color, intensity ) {
+
+				var directionalLight = new THREE.DirectionalLight( color, intensity );
+				directionalLight.position.set( x, y, z );
+				scene.add( directionalLight );
+
+				directionalLight.castShadow = true;
+				// directionalLight.shadowCameraVisible = true;
+
+				var d = 3;
+				directionalLight.shadowCameraLeft = -d;
+				directionalLight.shadowCameraRight = d;
+				directionalLight.shadowCameraTop = d;
+				directionalLight.shadowCameraBottom = -d;
+
+				directionalLight.shadowCameraNear = 0;
+				directionalLight.shadowCameraFar = 20;
+
+				directionalLight.shadowMapWidth = 1024;
+				directionalLight.shadowMapHeight = 1024;
+
+				directionalLight.shadowBias = -0.005;
+				directionalLight.shadowDarkness = 0.15;
+
+				return directionalLight;
+
+			}
+
+			function onWindowResize() {
+
+				camera.aspect = window.innerWidth / window.innerHeight;
+				camera.updateProjectionMatrix();
+
+				renderer.setSize( window.innerWidth, window.innerHeight );
+
+			}
+
+			function animate() {
+
+				requestAnimationFrame( animate );
+
+				render();
+				stats.update();
+
+			}
+
+			function render() {
+
+				renderer.render( scene, camera );
+
+			}
+
+			buildModelList();
+			selectModel();
+		</script>
+	</body>
+
+</html>
